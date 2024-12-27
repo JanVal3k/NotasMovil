@@ -44,7 +44,9 @@ class NotificacionesService {
 
     let fechaActual = new Date(fechaInicio);
     fechaActual.setHours(horaNotificacion.hours, horaNotificacion.minutes, 0);
-
+    if (isBefore(fechaActual, ahora)) {
+      fechaActual.setSeconds(0, 0);
+    }
     if (isSameDay(fechaInicio, fechaFin)) {
       if (isBefore(fechaActual, ahora)) {
         throw new Error('La hora seleccionada ya pasó para hoy');
