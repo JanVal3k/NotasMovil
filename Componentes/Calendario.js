@@ -95,14 +95,20 @@ const Calendario = () => {
       return;
     }
     try {
+      console.log('Fecha recibida:', fecha);
+      console.log('Tiempo recibido:', tiempo);
       const tarea = {
         dateKey: Date.now().toString(),
         Titulo: titulo,
         Fecha: fecha,
         Hora: tiempo,
       };
+      console.log('Tarea a guardar:', JSON.stringify(tarea, null, 2));
+
       const btnGuardar = clickGuardar;
       await btnGuardar.storeDatepicker(tarea);
+
+      await NotificacionesService.cancelarTodasLasNotificaciones();
 
       const resultadoNotificaciones =
         await NotificacionesService.programarNotificacionesTarea(tarea);
@@ -110,6 +116,7 @@ const Calendario = () => {
       if (!resultadoNotificaciones.success) {
         Alert.alert('Advertencia:', resultadoNotificaciones.message);
       }
+
       borrarTxtFechyHora();
       setEstadoGlobal(true);
       return btnGuardar;

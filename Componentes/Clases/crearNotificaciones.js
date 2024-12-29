@@ -6,12 +6,11 @@ import {
   isBefore,
   startOfDay,
   isSameDay,
+  addMinutes,
 } from 'date-fns';
 
 class NotificacionesService {
-  //-----------------------------------------------
   static async programarNotificacionesTarea(tarea) {
-    console.log('🔄 Programando tarea:', tarea);
     try {
       const notificationIds = await this.crearNotificacionesEnRango(tarea);
       return {
@@ -26,114 +25,92 @@ class NotificacionesService {
       };
     }
   }
-  //-----------------------------------------------
+
   static async crearNotificacionesEnRango(tarea) {
-    console.log('🔄 Tarea recibida:', tarea); //-------------------------
     const { Titulo, Fecha, Hora } = tarea;
-    const { startDate, endDate } = Fecha;
     const horaNotificacion = Hora?.Tiempo || { hours: 9, minutes: 0 };
 
-    const fechaInicio = new Date(startDate);
-    const fechaFin = new Date(endDate);
-    const ahora = new Date();
+    // Crear fechas objetivo correctamente
+    const fechaObjetivo = new Date(Fecha.startDate);
 
-    if (isBefore(fechaFin, startOfDay(ahora))) {
-      throw new Error('El rango de fechas ya ha pasado');
-    }
-    const notificationIds = [];
+    // Configurar la hora específica
+    fechaObjetivo.setHours(horaNotificacion.hours);
+    fechaObjetivo.setMinutes(horaNotificacion.minutes);
+    fechaObjetivo.setSeconds(0);
+    fechaObjetivo.setMilliseconds(0);
 
-    let fechaActual = new Date(fechaInicio);
-    fechaActual.setHours(horaNotificacion.hours, horaNotificacion.minutes, 0);
-    if (isBefore(fechaActual, ahora)) {
-      fechaActual.setSeconds(0, 0);
-    }
-    if (isSameDay(fechaInicio, fechaFin)) {
-      if (isBefore(fechaActual, ahora)) {
-        throw new Error('La hora seleccionada ya pasó para hoy');
-      }
+    // Obtener fecha actual real
+    const fechaActual = new Date();
 
-      try {
-        const id = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: '¡Recordatorio de Tarea!',
-            body: `${Titulo} - ${format(fechaActual, 'HH:mm')}`,
-            sound: true,
-            priority: Notifications.AndroidNotificationPriority.HIGH,
-            data: {
-              tareaId: tarea.dateKey,
-              fecha: fechaActual.toISOString(),
-            },
-          },
-          trigger: {
-            date: fechaActual,
-            shouldAlertIfSilent: true,
-          },
-        });
+    console.log('DEBUG - Información detallada:');
+    console.log('Fecha actual:', {
+      completa: fechaActual.toISOString(),
+      año: fechaActual.getFullYear(),
+      timestamp: fechaActual.getTime(),
+    });
+    console.log('Fecha objetivo:', {
+      completa: fechaObjetivo.toISOString(),
+      año: fechaObjetivo.getFullYear(),
+      timestamp: fechaObjetivo.getTime(),
+    });
 
-        notificationIds.push({
-          id,
-          fecha: fechaActual.toISOString(),
-        });
+    const diferenciaMilisegundos =
+      fechaObjetivo.getTime() - fechaActual.getTime();
+    const diferenciaMinutos = Math.floor(diferenciaMilisegundos / (1000 * 60));
 
-        return notificationIds;
-      } catch (error) {
-        console.error('Error al programar notificación:', error);
-        throw new Error('Error al programar la notificación');
-      }
-    } else {
-      if (isBefore(fechaActual, ahora)) {
-        fechaActual = addDays(startOfDay(ahora), 1);
-        fechaActual.setHours(
-          horaNotificacion.hours,
-          horaNotificacion.minutes,
-          0
-        );
-      }
-      while (!isAfter(fechaActual, fechaFin)) {
-        try {
-          const id = await Notifications.scheduleNotificationAsync({
-            content: {
-              title: '¡Recordatorio de Tarea!',
-              body: `${Titulo} - ${format(fechaActual, 'dd/MM/yyyy HH:mm')}`,
-              sound: true,
-              priority: Notifications.AndroidNotificationPriority.HIGH,
-              data: {
-                tareaId: tarea.dateKey,
-                fecha: fechaActual.toISOString(),
-              },
-            },
-            trigger: {
-              date: fechaActual,
-              shouldAlertIfSilent: true,
-            },
-          });
+    console.log('Diferencia real:', {
+      milisegundos: diferenciaMilisegundos,
+      minutos: diferenciaMinutos,
+    });
 
-          notificationIds.push({
-            id,
-            fecha: fechaActual.toISOString(),
-          });
-
-          fechaActual = addDays(fechaActual, 1);
-        } catch (error) {
-          console.error('Error en notificación específica:', error);
-        }
-      }
+    if (diferenciaMilisegundos <= 0) {
+      throw new Error('La hora configurada para la notificación ya pasó');
     }
 
-    return notificationIds;
-  }
-  //-----------------------------------------------
-  static async cancelarNotificaciones(notificationIds) {
     try {
-      for (const { id } of notificationIds) {
-        await Notifications.cancelScheduledNotificationAsync(id);
-      }
-      return true;
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '¡Recordatorio de Tarea!',
+          body: `${Titulo} - Programado para: ${fechaObjetivo.toLocaleTimeString()}`,
+          data: {
+            tareaId: tarea.dateKey,
+            fechaProgramada: fechaObjetivo.toISOString(),
+          },
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: {
+          seconds: Math.floor(diferenciaMilisegundos / 1000),
+          repeats: false,
+        },
+      });
+
+      const notificacionesProgramadas =
+        await Notifications.getAllScheduledNotificationsAsync();
+      console.log(
+        'Notificaciones actualmente programadas:',
+        notificacionesProgramadas.map((n) => ({
+          id: n.identifier,
+          trigger: n.trigger,
+          body: n.content.body,
+        }))
+      );
+
+      return [
+        {
+          id,
+          fecha: fechaObjetivo.toISOString(),
+        },
+      ];
     } catch (error) {
-      console.error('Error al cancelar notificaciones:', error);
-      return false;
+      console.error('Error al programar notificación:', error);
+      throw error;
     }
+  }
+
+  static async cancelarTodasLasNotificaciones() {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    console.log('Todas las notificaciones canceladas');
   }
 }
-
 export default NotificacionesService;

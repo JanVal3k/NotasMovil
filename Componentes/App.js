@@ -4,6 +4,7 @@ import {
   StatusBar,
   useWindowDimensions,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
@@ -66,6 +67,26 @@ const App = () => {
   useEffect(() => {
     requestNotificationPermissions();
   }, []);
+  //--------------------------------------
+  useEffect(() => {
+    const verificarFechaSistema = () => {
+      const fechaActual = new Date();
+      const fechaLocal = new Date(
+        fechaActual.getTime() - fechaActual.getTimezoneOffset() * 60000
+      );
+
+      console.log('Información del sistema:', {
+        fechaLocal: fechaLocal.toLocaleString('es-CO', {
+          timeZone: 'America/Bogota',
+        }),
+        zonaHoraria: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        offset: fechaActual.getTimezoneOffset() / 60,
+      });
+    };
+
+    verificarFechaSistema();
+  }, []);
+  //---------------------------------------
   return (
     <ProvedorEstado>
       <PaperProvider>
